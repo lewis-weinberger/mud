@@ -1,0 +1,29 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - '**'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    container:
+      image: crystallang/crystal:latest-alpine
+    steps:
+      - name: Download source
+        uses: actions/checkout@v3
+      - name: Install dependencies
+        run: apk add --update --upgrade --no-cache --force-overwrite sqlite-dev
+      - name: Build
+        run: |
+          shards build --production --release --static --no-debug
+          strip ./bin/mud
+          cp ./bin/mud mud-${{ github.ref_name }}-linux-x86_64
+      - name: Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: mud-${{ github.ref_name }}-linux-x86_64
+          draft: true

@@ -1,0 +1,26 @@
+name: mud
+
+version: 0.1.0
+
+description: "A Western-themed Multi User Dungeon (MUD)"
+
+repository : "https://github.com/lewis-weinberger/mud"
+
+authors:
+  - lewis-weinberger
+
+license: ISC
+
+dependencies:
+  sqlite3:
+    github: crystal-lang/crystal-sqlite3
+    version: ~> 0.19
+
+targets:
+  mud:
+    main: src/mud.cr
+
+executables:
+  - mud
+
+crystal: ">= 1.0.0, < 2.0.0"
