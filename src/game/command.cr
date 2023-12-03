@@ -14,12 +14,17 @@ module Mud::Game
                 "\". When in doubt, let your horse do the thinkin'."]]
 
     @@unknown = 0
+    @@queue = Hash(Mud::Net::ClientId, Command).new
 
     def initialize(@id, @world)
     end
 
     # Attempts to parse user input into a command.
     def self.parse(id, input, world) : Command?
+      if cmd = @@queue.delete id
+        return cmd.again(id, input, world)
+      end
+
       words = input.split
       if words.empty?
         return
@@ -27,7 +32,7 @@ module Mud::Game
 
       case words[0].upcase
       when "NAME", "NA"
-        Name.new(id, world, words)
+        Name.new(id, world, false, words)
       when "SAY", "SA"
         Say.new(id, world, input)
       when "SHOUT", "SH"
@@ -40,27 +45,109 @@ module Mud::Game
         # Print a message to say we don't recognise that command
         s = UNKNOWN[@@unknown]
         @@unknown = (@@unknown + 1) % 3
-        world.server.send(id, s[0] + words[0].colorize(:red).to_s + s[1])
+        world.send(id, s[0] + words[0].colorize(:red).to_s + s[1])
         nil
       end
+    end
+
+    # Queues up another command
+    def self.queue(id, cmd)
+      @@queue[id] = cmd
+    end
+
+    # Creates a new command to run based on additional input
+    # `Mud::Game::Command` does nothing, subclasses will override this.
+    def again(id, input, world)
     end
 
     # Runs the command.
     # `Mud::Game::Command` sends a message indicating the command isn't
     # implemented, but subclasses will override this.
     def run
-      @world.server.send(@id, {{ @type.stringify }} + " not yet implemented")
+      @world.send(@id, {{ @type.stringify }} + " not yet implemented")
     end
   end
 
   # A command to allow players to login or create a new character.
   class Name < Command
-    def initialize(@id, @world, words)
+    @words : Array(String)
+    @name : String?
+
+    def initialize(@id, @world, @verify, @words)
     end
 
     # Yields help description.
     def self.help(&)
       yield "name/na", "NAME", "identify yourself by a given player name"
+    end
+
+    # Creates a name command with further input
+    def again(id, input, world)
+      words = input.split
+      if words.empty?
+        @verify = false
+      else
+        @words = words
+      end
+      self
+    end
+
+    # Authenticates a player based on their password
+    def verify
+      if !(name = @name)
+        @world.send(@id, "Something went awry pard! Try again")
+        return # shouldn't be possible
+      end
+
+      @world.server.unhide(@id)
+      password = @words[0]
+      stranger = @world.online[@id]
+      if player = @world.players[@name]?
+        if player.password == password
+          old = player.id
+          if player == @world.online[old]?
+            @world.send(@id, "Someone else goes by that name in these parts!")
+            return
+          else
+            player.id = @id
+            @world.online[@id] = player
+            @world.send(@id, "Nice to see you again, #{name}.")
+            @world.broadcast("#{stranger.name} was revealed to be #{name}".colorize(:yellow),
+              exclude = @id)
+          end
+        else
+          @world.send(@id, "Sorry #{stranger.name}, that ain't #{@name}'s password!")
+        end
+      else
+        player = Player.new(name, @id, password)
+        @world.players[name] = player
+        @world.online[@id] = player
+        @world.send(@id, "Welcome #{name}, I don't believe we've met before!")
+        @world.broadcast("#{stranger.name} was revealed to be #{name}".colorize(:yellow),
+          exclude = @id)
+      end
+    end
+
+    # Request a password from the player
+    def request
+      if @words[1..].empty?
+        @world.send(@id, "NAME requires an argument (your name, dummy!)")
+      else
+        @name = @words[1]
+        @world.send(@id, "#{@name} eh? What's your secret password?")
+        @world.server.hide(@id)
+        @verify = true
+        Command.queue(@id, self)
+      end
+    end
+
+    # Runs the name command to authenticate a player
+    def run
+      if @verify
+        verify
+      else
+        request
+      end
     end
   end
 
@@ -129,14 +216,14 @@ module Mud::Game
           str << descs[i]
           str << "\n"
         end
-        str << "\nFinally, remember: don't squat with your spurs on!\n\n"
+        str << "\nFinally, remember: don't squat with your spurs on!"
       end
       str
     end
 
     # Runs the help command to print information about available commands.
     def run
-      @world.server.send(@id, @@str)
+      @world.send(@id, @@str)
     end
 
     # Yields help description.

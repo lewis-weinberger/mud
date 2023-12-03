@@ -30,12 +30,9 @@ I reckon you're fixing to get started. If you're new to these
 here parts, try typing help and hitting enter.
 
 Best of luck to ya!
-
-
 STRING
 
   HELP = <<-STRING
-
 This needs to be written!
 
 STRING

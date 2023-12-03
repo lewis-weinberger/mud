@@ -16,11 +16,14 @@ module Mud::Game
   # database, which can be used for backups and saving state
   # on game end.
   class World
+    property players
+    property online
     getter server : Mud::Net::Server
 
     def initialize(@server)
-      @players = {} of Mud::Net::ClientId => Player
+      @players = {} of String => Player
       @areas = {} of String => Area
+      @online = {} of Mud::Net::ClientId => Player
       @events = Deque(Event).new
     end
 
@@ -34,6 +37,16 @@ module Mud::Game
       end
     end
 
+    # Sends a message to a player
+    def send(id, msg)
+      @server.send(id, "\n#{msg}\n\n")
+    end
+
+    # Broadcasts a message to all players
+    def broadcast(msg, exclude = -1)
+      @server.broadcast("\n#{msg}\n\n", exclude)
+    end
+
     # Runs the main event loop for the game.
     def run
       # Receive the latest client information
@@ -45,18 +58,18 @@ module Mud::Game
         end
 
         joiners.each do |id|
-          player = Player.stranger
-          @players[id] = player
+          player = Player.stranger(id)
+          @online[id] = player # don't polute @players with strangers
           @server.send(id, BANNER.colorize(:magenta))
-          @server.send(id, INTRO)
-          @server.broadcast("#{player.name} rode into town".colorize(:yellow),
+          send(id, INTRO)
+          broadcast("#{player.name} rode into town".colorize(:yellow),
             exclude = id)
         end
 
         leavers.each do |id|
-          if player = @players[id]?
-            @server.broadcast("#{player.name} rode off into the sunset".colorize(:yellow))
-            @players.delete id
+          if player = @online[id]?
+            broadcast("#{player.name} rode off into the sunset".colorize(:yellow))
+            @online.delete id
           end
         end
       end

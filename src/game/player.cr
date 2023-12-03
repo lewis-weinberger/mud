@@ -5,15 +5,16 @@ module Mud::Game
   class Player < Entity
     property name : String
     property password : String?
+    property id : Mud::Net::ClientId
 
     @@stranger = 0
 
-    def initialize(@name)
+    def initialize(@name, @id, @password = nil)
     end
 
     # Create a placeholder for new connections
-    def self.stranger
-      player = new("Stranger\##{@@stranger}")
+    def self.stranger(id)
+      player = new("Stranger\##{@@stranger}", id)
       @@stranger += 1
       player
     end
