@@ -61,7 +61,7 @@ module Mud::Game
       Log.info { "World loaded from #{uri}" }
 
       # Make sure admin account consistent with command line invocation
-      admin = players.fetch("admin") { Player.new("admin", 0, @admin, "Lobby") }
+      admin = players.fetch("admin") { Player.new("admin", 0_u16, @admin, "Lobby") }
       admin.password = @admin
       players["admin"] = admin
 
@@ -74,7 +74,7 @@ module Mud::Game
 
       # TODO
 
-      admin = Player.new("admin", 0, @admin, "Lobby")
+      admin = Player.new("admin", 0_u16, @admin, "Lobby")
       Log.info { "World generated from scratch" }
 
       {players, areas}
