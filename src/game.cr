@@ -1,4 +1,6 @@
 require "colorize"
+require "db"
+require "sqlite3"
 require "./net"
 require "./game/*"
 
@@ -16,24 +18,75 @@ module Mud::Game
   # database, which can be used for backups and saving state
   # on game end.
   class World
-    property players
+    property players : Hash(String, Player)
+    property areas : Hash(String, Area)
     property online
     getter server : Mud::Net::Server
 
-    def initialize(@server)
-      @players = {} of String => Player
-      @areas = {} of String => Area
-      @online = {} of Mud::Net::ClientId => Player
+    def initialize(@server, @admin : String)
+      @db = "WesternMud"
+      @players, @areas = load
+      @online = Hash(Mud::Net::ClientId, Player).new
       @events = Deque(Event).new
+      @stop = false
+    end
+
+    # Loads previous save state from database (if present)
+    def load
+      uri = "sqlite3:./#{@db}.db"
+      players = Hash(String, Player).new
+      areas = Hash(String, Area).new
+
+      DB.connect uri do |db|
+        # First we load the players
+        PlayerRecord.from_rs(db.query(<<-SQL
+          SELECT name, password, id, room
+          FROM players
+          SQL
+        )).each do |record|
+          player = record.player
+          players[player.name] = player
+        end
+
+        # Next we load the areas (which loads the rooms too)
+        AreaRecord.from_rs(db.query(<<-SQL
+          SELECT name, description
+          FROM areas
+          SQL
+        )).each do |record|
+          area = record.area(db, players)
+          areas[area.name] = area
+        end
+      end
+      Log.info { "World loaded from #{uri}" }
+
+      # Make sure admin account consistent with command line invocation
+      admin = players.fetch("admin") { Player.new("admin", 0, @admin, "Lobby") }
+      admin.password = @admin
+      players["admin"] = admin
+
+      {players, areas}
+    rescue ex
+      # Generate world from scratch
+      Log.error { "Error loading world: #{ex.message}" }
+      players = Hash(String, Player).new
+      areas = Hash(String, Area).new
+
+      # TODO
+
+      admin = Player.new("admin", 0, @admin, "Lobby")
+      Log.info { "World generated from scratch" }
+
+      {players, areas}
     end
 
     # Creates a new world with the given *server*.
-    def self.start(server, &)
-      world = new(server)
+    def self.start(server, admin, &)
+      world = new(server, admin)
       begin
         yield world
       ensure
-        world.save
+        world.save(timestamp = false)
       end
     end
 
@@ -45,6 +98,11 @@ module Mud::Game
     # Broadcasts a message to all players
     def broadcast(msg, exclude = -1)
       @server.broadcast("\n#{msg}\n\n", exclude)
+    end
+
+    # Stops the game
+    def stop
+      @stop = true
     end
 
     # Runs the main event loop for the game.
@@ -72,20 +130,38 @@ module Mud::Game
             @online.delete id
           end
         end
-      end
 
-      # Finally we can process game events
-      ongoing = Deque(Event).new
-      while event = @events.shift?
-        if !event.finished?
-          ongoing << event
+        # Check if the game has been stopped
+        if @stop
+          Log.info { "STOP received from admin" }
+          broadcast("!!! SERVER CLOSED BY ADMINISTRATOR !!!".colorize(:red))
+          break
         end
+
+        # Finally we can process game events
+        ongoing = Deque(Event).new
+        while event = @events.shift?
+          if !event.finished?
+            ongoing << event
+          end
+        end
+        @events.concat ongoing
       end
-      @events.concat ongoing
     end
 
-    # TODO: documentation
-    def save
+    # Save the game state to a database
+    def save(timestamp = true)
+      ts = timestamp ? Time.utc.to_s("_%Y%m%d_%H:%M:%S") : ""
+      uri = "sqlite3:./#{@db}#{ts}.db"
+      DB.connect uri do |db|
+        db.transaction do |tx|
+          con = tx.connection
+          # TODO
+        end
+      end
+      Log.info { "World saved to #{uri}" }
+    rescue ex
+      Log.error { "Error saving world: #{ex.message}" }
     end
   end
 end

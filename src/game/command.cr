@@ -41,6 +41,8 @@ module Mud::Game
         Look.new(id, world)
       when "HELP", "H", "?"
         Help.new(id, world)
+      when "STOP"
+        Stop.new(id, world)
       else
         # Print a message to say we don't recognise that command
         s = UNKNOWN[@@unknown]
@@ -119,7 +121,7 @@ module Mud::Game
           @world.send(@id, "Sorry #{stranger.name}, that ain't #{@name}'s password!")
         end
       else
-        player = Player.new(name, @id, password)
+        player = Player.new(name, @id, password, "Lobby")
         @world.players[name] = player
         @world.online[@id] = player
         @world.send(@id, "Welcome #{name}, I don't believe we've met before!")
@@ -173,6 +175,23 @@ module Mud::Game
     end
   end
 
+  # An admin command to stop the server.
+  class Stop < Command
+    def initialize(@id, @world)
+    end
+
+    def run
+      if player = @world.online[@id]?
+        if player.name == "admin"
+          @world.stop
+        else
+          @world.send(@id,
+            "Only the admin can stop the game!\nThis has been noted, #{player.name}...")
+        end
+      end
+    end
+  end
+
   # A command to let players learn about the room they're in.
   class Look < Command
     def initialize(@id, @world)
@@ -197,11 +216,13 @@ module Mud::Game
       args = [] of String
       descs = [] of String
       {% for command, index in Command.all_subclasses %}
-        {{command.name}}.help do |cmd, arg, desc|
-          cmds << cmd
-          args << arg
-          descs << desc
-        end
+        {% if command.class.has_method?(:help) %}
+          {{command.name}}.help do |cmd, arg, desc|
+            cmds << cmd
+            args << arg
+            descs << desc
+          end
+        {% end %}
       {% end %}
 
       # Build help string from individual command help strings

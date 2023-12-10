@@ -7,7 +7,7 @@ module Mud
   DESCRIPTION = "Multi User Dungeon (MUD), a simple game server."
 
   OptionParser.parse do |parser|
-    parser.banner = "#{DESCRIPTION}\n\nUsage: mud ADDRESS PORT"
+    parser.banner = "#{DESCRIPTION}\n\nUsage: mud ADDRESS PORT PASSWORD"
     parser.on("-v", "--version", "Print version.") do
       puts "mud #{VERSION}"
       exit
@@ -24,14 +24,14 @@ module Mud
   end
 
   begin
-    if ARGV.size < 2
-      raise "incorrect argument; require ADDRESS & PORT"
+    if ARGV.size < 3
+      raise "incorrect argument; require ADDRESS, PORT and PASSWORD"
       exit(1)
     end
 
     # Start a server and create a new game world to run
     Mud::Net::Server.open(ARGV[0], ARGV[1].to_i) do |server|
-      Mud::Game::World.start(server) do |world|
+      Mud::Game::World.start(server, ARGV[2]) do |world|
         world.run
       end
     end

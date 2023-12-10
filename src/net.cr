@@ -196,7 +196,7 @@ module Mud::Net
     def close
       Log.info { "Stopping server" }
       @clients.each_value do |channel|
-        channel.send("Server stopping now!")
+        channel.send("Server stopping now!\r\n")
       end
       @server.close
       @messages.close
