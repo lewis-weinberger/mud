@@ -37,11 +37,14 @@ in [Releases](https://github.com/lewis-weinberger/mud/releases/latest).
 
 ### Hosting a server
 
-The server can be started by specifying an address and port to host on:
+The server can be started by running the `mud` executable:
 
 ```sh
-mud 127.0.0.1 5000
+mud
 ```
+
+This will read configuration from `config.yml` in the working directory, or otherwise use a
+default configuration. Use the `-h` switch to learn about available command-line options.
 
 Clients can then connect using their favourite Telnet client (see [below](#telnet-clients)):
 

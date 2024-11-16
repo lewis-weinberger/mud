@@ -115,7 +115,7 @@ module Mud::Game
             @world.online[@id] = player
             @world.send(@id, "Nice to see you again, #{name}.")
             @world.broadcast("#{stranger.name} was revealed to be #{name}".colorize(:yellow),
-              exclude = @id)
+              @id)
           end
         else
           @world.send(@id, "Sorry #{stranger.name}, that ain't #{@name}'s password!")
@@ -126,7 +126,7 @@ module Mud::Game
         @world.online[@id] = player
         @world.send(@id, "Welcome #{name}, I don't believe we've met before!")
         @world.broadcast("#{stranger.name} was revealed to be #{name}".colorize(:yellow),
-          exclude = @id)
+          @id)
       end
     end
 
@@ -170,7 +170,7 @@ module Mud::Game
     end
 
     # Yields help description.
-    def self.help
+    def self.help(&)
       yield "shout/sh", "MESSAGE", "send MESSAGE to everyone"
     end
   end
@@ -198,7 +198,7 @@ module Mud::Game
     end
 
     # Yields help description.
-    def self.help
+    def self.help(&)
       yield "look/l", "", "print a description of the room occupied by the player"
     end
   end
@@ -226,20 +226,19 @@ module Mud::Game
       {% end %}
 
       # Build help string from individual command help strings
-      str = String.build do |str|
+      String.build do |str|
         str << HELP
         (0...cmds.size).each do |i|
           str << cmds[i].colorize(:magenta).to_s
-          str << " " * (cmds.max_of { |x| x.size } - cmds[i].size + 1)
+          str << " " * (cmds.max_of &.size - cmds[i].size + 1)
           str << args[i].colorize(:cyan).to_s
-          str << " " * (args.max_of { |x| x.size } - args[i].size + 1)
+          str << " " * (args.max_of &.size - args[i].size + 1)
           str << "- "
           str << descs[i]
           str << "\n"
         end
         str << "\nFinally, remember: don't squat with your spurs on!"
       end
-      str
     end
 
     # Runs the help command to print information about available commands.
@@ -248,7 +247,7 @@ module Mud::Game
     end
 
     # Yields help description.
-    def self.help
+    def self.help(&)
       yield "help/h/?", "", "print available commands"
     end
   end

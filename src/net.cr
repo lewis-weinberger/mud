@@ -15,8 +15,7 @@ module Mud::Net
 
     # Creates a TCP socket and spawns a fiber to wait for connections.
     def initialize(host, port)
-      Log.setup_from_env
-      Log.info &.emit("Hosting server", host: host, port: port)
+      Log.info &.emit("Hosting server", host: host, port: port.to_s)
       @server = TCPServer.new(host, port)
       @messages = Channel(Message).new(64)
       @joiners = Channel(Joiner).new(64)
@@ -107,33 +106,31 @@ module Mud::Net
 
     # Reads messages from the client.
     def client_reader(id, socket, channel, done)
-      begin
-        q = Telnet.new(channel)
-        buffer = Bytes.new(2048)
-        joined = false
+      q = Telnet.new(channel)
+      buffer = Bytes.new(2048)
+      joined = false
 
-        loop do
-          n = socket.read(buffer)
-          Log.debug { "Received from client #{id}: #{buffer[...n]}" }
-          if n == 0
-            raise "Socket closed"
-          end
-
-          q.parse?(buffer[...n]).each do |message|
-            @messages.send(Message.new id, message)
-          end
-
-          if q.negotiate && joined == false
-            @joiners.send(Joiner.new id, channel)
-            joined = true
-          end
+      loop do
+        n = socket.read(buffer)
+        Log.debug { "Received from client #{id}: #{buffer[...n]}" }
+        if n == 0
+          raise "Socket closed"
         end
-      rescue ex
-        Log.debug(exception: ex) { "Client reader #{id}" }
-      ensure
-        channel.close
-        done.close
+
+        q.parse?(buffer[...n]).each do |message|
+          @messages.send(Message.new id, message)
+        end
+
+        if q.negotiate && joined == false
+          @joiners.send(Joiner.new id, channel)
+          joined = true
+        end
       end
+    rescue ex
+      Log.debug(exception: ex) { "Client reader #{id}" }
+    ensure
+      channel.close
+      done.close
     end
 
     # Writes messages to the client.
@@ -159,7 +156,7 @@ module Mud::Net
     # Sends a message to a specific connected client.
     def send(id, msg)
       if channel = @clients[id]?
-        msg.to_s.each_line(chomp = true) do |line|
+        msg.to_s.each_line(true) do |line|
           # Telnet requires lines to end with CR LF
           channel.send("#{line}\r\n")
         end

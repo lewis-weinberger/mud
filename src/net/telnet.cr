@@ -75,23 +75,23 @@ module Mud::Net
     # Processes bytes read from Telnet stream.
     def parse?(buf : Bytes) : Array(String)
       sub = [] of UInt8
-      str = String.build do |str|
+      str = String.build do |io|
         if @cache
-          str << @cache
+          io << @cache
           @cache = nil
         end
-        buf.each do |b|
+        buf.each do |x|
           if @state == State::Data
-            data(b, str)
+            data(x, io)
           elsif @state == State::Command
-            command(b)
+            command(x)
           else
-            subnegotiation(b, sub)
+            subnegotiation(x, sub)
           end
-          @previous = b
+          @previous = x
         end
       end
-      lines = str.lines(chomp = false)
+      lines = str.lines(false)
 
       # Return only complete lines, otherwise cache for later
       if lines.size == 0 || lines[-1].ends_with?("\n")
@@ -170,8 +170,8 @@ module Mud::Net
         while i < @sub.size
           sub = @sub[i]
           if sub.size >= 3 && sub[0] == TT && sub[1] == 0
-            term = String.build do |term|
-              sub[2..].each { |b| term.write_byte b }
+            term = String.build do |io|
+              sub[2..].each { |x| io.write_byte x }
             end
             Log.debug { "Received TERM = #{term}" }
 
@@ -368,11 +368,11 @@ module Mud::Net
     end
 
     def self.no
-      option = new(OptionState::No, OptionState::No)
+      new(OptionState::No, OptionState::No)
     end
 
     def self.wantyes
-      option = new(OptionState::WantYes, OptionState::WantYes)
+      new(OptionState::WantYes, OptionState::WantYes)
     end
   end
 

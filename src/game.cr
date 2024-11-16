@@ -3,6 +3,7 @@ require "db"
 require "sqlite3"
 require "./net"
 require "./game/*"
+require "./config"
 
 # Functionality for the game elements of the MUD.
 module Mud::Game
@@ -23,8 +24,9 @@ module Mud::Game
     property online
     getter server : Mud::Net::Server
 
-    def initialize(@server, @admin : String)
+    def initialize(@server, @config : Config)
       @db = "WesternMud"
+      @admin = @config.passwd
       @players, @areas = load
       @online = Hash(Mud::Net::ClientId, Player).new
       @events = Deque(Event).new
@@ -74,19 +76,19 @@ module Mud::Game
 
       # TODO
 
-      admin = Player.new("admin", 0_u16, @admin, "Lobby")
+      players["admin"] = Player.new("admin", 0_u16, @admin, "Lobby")
       Log.info { "World generated from scratch" }
 
       {players, areas}
     end
 
     # Creates a new world with the given *server*.
-    def self.start(server, admin, &)
-      world = new(server, admin)
+    def self.start(server, config, &)
+      world = new(server, config)
       begin
         yield world
       ensure
-        world.save(timestamp = false)
+        world.save(false)
       end
     end
 
@@ -120,8 +122,7 @@ module Mud::Game
           @online[id] = player # don't polute @players with strangers
           @server.send(id, BANNER.colorize(:magenta))
           send(id, INTRO)
-          broadcast("#{player.name} rode into town".colorize(:yellow),
-            exclude = id)
+          broadcast("#{player.name} rode into town".colorize(:yellow), id)
         end
 
         leavers.each do |id|
@@ -155,7 +156,7 @@ module Mud::Game
       uri = "sqlite3:./#{@db}#{ts}.db"
       DB.connect uri do |db|
         db.transaction do |tx|
-          con = tx.connection
+          _ = tx.connection
           # TODO
         end
       end
